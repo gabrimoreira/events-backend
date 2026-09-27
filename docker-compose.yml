@@ -1,0 +1,135 @@
+# Local environment. AWS services are emulated by LocalStack (S3, SNS, SQS, DynamoDB);
+# Postgres and Redis stand in for RDS and ElastiCache.
+#
+#   docker compose up -d                        → infra + gateway (services run on the host: npm run dev)
+#   docker compose --profile services up -d     → everything in containers
+name: eventflow
+
+x-service: &service
+  profiles: [services]
+  build:
+    context: .
+  env_file:
+    - path: .env
+      required: false
+  environment: &service-env
+    NODE_ENV: production
+    DATABASE_URL: postgresql://eventflow:eventflow@postgres:5432/eventflow
+    REDIS_URL: redis://redis:6379
+    AWS_ENDPOINT_URL: http://localstack:4566
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    localstack:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: eventflow
+      POSTGRES_PASSWORD: eventflow
+      POSTGRES_DB: eventflow
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U eventflow']
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      retries: 10
+
+  localstack:
+    image: localstack/localstack:4.14
+    environment:
+      SERVICES: s3,sqs,sns,dynamodb
+      AWS_DEFAULT_REGION: us-east-1
+      SQS_ENDPOINT_STRATEGY: path
+    ports:
+      - '4566:4566'
+    volumes:
+      - ./infra/localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'curl -sf localhost:4566/_localstack/init/ready | grep -q ''"completed": true''',
+        ]
+      interval: 5s
+      retries: 20
+
+  # nginx: serves the frontend build and routes /api/* to the services.
+  # Needs ../events-frontend (sibling clone) — it is built inside the image.
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+      additional_contexts:
+        frontend: ../events-frontend
+      args:
+        VITE_API_URL: http://localhost:${GATEWAY_PORT:-3000}/api
+    environment:
+      AUTH_SERVICE_URL: http://host.docker.internal:3001
+      CATALOG_SERVICE_URL: http://host.docker.internal:3002
+      SALES_SERVICE_URL: http://host.docker.internal:3003
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - '${GATEWAY_PORT:-3000}:80'
+
+  auth-service:
+    <<: *service
+    build:
+      context: .
+      args:
+        APP: auth-service
+    environment:
+      <<: *service-env
+      PORT: 3001
+    ports:
+      - '3001:3001'
+
+  catalog-service:
+    <<: *service
+    build:
+      context: .
+      args:
+        APP: catalog-service
+    environment:
+      <<: *service-env
+      PORT: 3002
+    ports:
+      - '3002:3002'
+
+  sales-service:
+    <<: *service
+    build:
+      context: .
+      args:
+        APP: sales-service
+    environment:
+      <<: *service-env
+      PORT: 3003
+    ports:
+      - '3003:3003'
+
+  processing-worker:
+    <<: *service
+    build:
+      context: .
+      args:
+        APP: processing-worker
+
+volumes:
+  postgres-data:

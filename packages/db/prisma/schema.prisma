@@ -1,0 +1,207 @@
+// Single PostgreSQL database (Amazon RDS) shared by the services.
+// Table ownership is a convention — each service writes only to its own tables:
+//   auth-service     → users
+//   catalog-service  → events, ticket_batches
+//   sales-service    → orders, order_items, tickets (+ ticket_batches.sold inside the purchase transaction)
+//   processing-worker→ tickets.status/pdf_key and events.banner_variants
+// IDs are prefixed strings (usr_, evt_, bat_, ord_, tkt_) to match the frontend contract.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  customer
+  admin
+}
+
+enum EventCategory {
+  shows
+  festivais
+  esportes
+  tecnologia
+  cultura
+  gastronomia
+}
+
+enum EventStatus {
+  draft
+  published
+  cancelled
+  finished
+}
+
+enum OrderStatus {
+  paid
+  pending
+  cancelled
+}
+
+enum PaymentMethod {
+  card
+  pix
+}
+
+enum TicketStatus {
+  processing
+  valid
+  used
+  cancelled
+}
+
+model User {
+  id           String   @id
+  name         String
+  email        String   @unique
+  cpf          String
+  phone        String?
+  city         String?
+  role         UserRole @default(customer)
+  avatarUrl    String?  @map("avatar_url")
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  orders  Order[]
+  tickets Ticket[]
+
+  @@map("users")
+}
+
+model Event {
+  id                   String        @id
+  title                String
+  summary              String
+  description          String
+  category             EventCategory
+  startsAt             DateTime      @map("starts_at")
+  endsAt               DateTime      @map("ends_at")
+  venueName            String        @map("venue_name")
+  venueAddress         String        @map("venue_address")
+  venueCity            String        @map("venue_city")
+  venueState           String        @map("venue_state")
+  /// Original banner URL (S3 or external).
+  bannerUrl            String        @map("banner_url")
+  /// Resized versions produced by the worker: { thumb, card, hero }.
+  bannerVariants       Json?         @map("banner_variants")
+  organizerName        String        @map("organizer_name")
+  organizerVerified    Boolean       @default(false) @map("organizer_verified")
+  organizerEventsCount Int           @default(1) @map("organizer_events_count")
+  status               EventStatus   @default(draft)
+  featured             Boolean       @default(false)
+  tags                 String[]
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  batches TicketBatch[]
+  orders  Order[]
+  tickets Ticket[]
+
+  @@index([status, startsAt])
+  @@index([category])
+  @@index([venueCity])
+  @@map("events")
+}
+
+model TicketBatch {
+  id          String   @id
+  eventId     String   @map("event_id")
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  /// Capacity. The migration adds CHECK (sold BETWEEN 0 AND quantity) as a last line of defense against overselling.
+  quantity    Int
+  sold        Int      @default(0)
+  position    Int      @default(0)
+  startsAt    DateTime @map("starts_at")
+  endsAt      DateTime @map("ends_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  event      Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  tickets    Ticket[]
+
+  @@index([eventId])
+  @@map("ticket_batches")
+}
+
+model Order {
+  id            String        @id
+  /// Sequential number shown as "EF-<number>" (sequence starts at 1001).
+  number        Int           @unique @default(autoincrement())
+  customerId    String        @map("customer_id")
+  customerName  String        @map("customer_name")
+  customerEmail String        @map("customer_email")
+  customerCpf   String?       @map("customer_cpf")
+  eventId       String        @map("event_id")
+  eventTitle    String        @map("event_title")
+  subtotal      Decimal       @db.Decimal(10, 2)
+  fee           Decimal       @db.Decimal(10, 2)
+  total         Decimal       @db.Decimal(10, 2)
+  status        OrderStatus
+  paymentMethod PaymentMethod @map("payment_method")
+  paymentStatus OrderStatus   @map("payment_status")
+  cardLast4     String?       @map("card_last4")
+  installments  Int?
+  paidAt        DateTime?     @map("paid_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  customer User        @relation(fields: [customerId], references: [id])
+  event    Event       @relation(fields: [eventId], references: [id])
+  items    OrderItem[]
+  tickets  Ticket[]
+
+  @@index([customerId])
+  @@index([eventId])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id
+  orderId   String  @map("order_id")
+  batchId   String  @map("batch_id")
+  batchName String  @map("batch_name")
+  unitPrice Decimal @map("unit_price") @db.Decimal(10, 2)
+  quantity  Int
+
+  order Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  batch TicketBatch @relation(fields: [batchId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Ticket {
+  id          String       @id
+  code        String       @unique
+  orderId     String       @map("order_id")
+  ownerId     String       @map("owner_id")
+  eventId     String       @map("event_id")
+  batchId     String       @map("batch_id")
+  holderName  String       @map("holder_name")
+  holderEmail String       @map("holder_email")
+  price       Decimal      @db.Decimal(10, 2)
+  status      TicketStatus @default(processing)
+  /// S3 key of the generated PDF; the API returns a pre-signed URL as `pdfUrl`.
+  pdfKey      String?      @map("pdf_key")
+  issuedAt    DateTime     @default(now()) @map("issued_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  order Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  owner User        @relation(fields: [ownerId], references: [id])
+  event Event       @relation(fields: [eventId], references: [id])
+  batch TicketBatch @relation(fields: [batchId], references: [id])
+
+  @@index([ownerId])
+  @@index([eventId])
+  @@index([status])
+  @@map("tickets")
+}
