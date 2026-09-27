@@ -4,7 +4,7 @@ Backend da plataforma de venda e emissão de ingressos **EventFlow**, em **micro
 
 > Trabalho Prático 1 — Desenvolvimento de Software para Nuvem (UFC). Usa EC2 (ALB + Auto Scaling), RDS, S3, ElastiCache, DynamoDB e SNS/SQS.
 
-**Estado atual: setup inicial.** Toda a infraestrutura de código está pronta e rodando: serviços, gateway, banco com seed, cache, audit log, filas e worker. As rotas do contrato estão registradas e validam a entrada, mas respondem `501 Não implementado.` até cada serviço ser implementado (veja [Roadmap](#roadmap-e-divisão-de-trabalho)).
+**Estado atual: setup inicial.** Toda a infraestrutura de código está pronta e rodando: serviços, gateway, banco com seed, cache, audit log, filas e worker. As rotas do contrato estão registradas e validam a entrada, mas respondem `501 Não implementado.` até cada serviço ser implementado.
 
 ## Arquitetura
 
@@ -185,19 +185,6 @@ Os padrões são os do frontend: as páginas conhecem os `contracts`, e aqui as 
 - **Mensagens:** `publisher.publish({ type: 'ORDER_PAID', … })` depois do commit. Os handlers do worker devem ser **idempotentes**, porque o SQS pode reentregar.
 - **IDs:** `createId('evt')` gera `evt_xxxxxxxxxx`, o mesmo formato do frontend. O número do pedido é `EF-<sequência>`.
 - **Services dos stubs:** as dependências já chegam em `_deps`. Ao implementar, renomeie para `deps` e troque `notImplemented()` pela regra.
-
-## Roadmap e divisão de trabalho
-
-| Fase           | Datas       | Entregas                                                                                                                    |
-| -------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 0 Setup        | 27–28/09    | este repositório                                                                                                            |
-| 1 Core         | 29/09–02/10 | **auth** completo; **catalog** CRUD + cache + banner no S3 + audit; **sales** compra transacional (409) + pedidos/ingressos |
-| 2 Assíncrono   | 02–04/10    | **worker** PDF/QR + resize; dashboard; frontend ligado ao backend local                                                     |
-| 3 AWS          | 04–06/10    | Terraform completo (RDS, ElastiCache, S3, DynamoDB, SNS/SQS, ECR, ALB, ASG, worker) + deploy                                |
-| 4 Elasticidade | 07–09/10    | alarmes de CPU, teste de carga (scale-out 1→3 e scale-in), vídeo, README final                                              |
-| Entrega        | 10/10       | links dos repositórios + vídeo                                                                                              |
-
-As frentes são independentes e podem ser divididas por pessoa: **auth**, **catalog**, **sales**, **worker** e **infra** (Terraform + ALB/ASG + teste de carga).
 
 ## Integração com o frontend
 
