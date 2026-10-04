@@ -1,13 +1,17 @@
-import type { S3Client } from '@aws-sdk/client-s3'
+import { randomUUID } from 'node:crypto'
+import { Buffer } from 'node:buffer'
+import { PutObjectCommand, type S3Client } from '@aws-sdk/client-s3'
 import type { AuditLogger } from '@eventflow/shared/audit'
 import { CACHE_SCOPE, type Cache } from '@eventflow/shared/cache'
-import { ApiError, notImplemented, type AuthUser } from '@eventflow/shared/http'
+import { ApiError, type AuthUser } from '@eventflow/shared/http'
 import type { Publisher } from '@eventflow/shared/messaging'
 import type { DbClient, Prisma } from '@eventflow/db'
 
 import type { EventsService } from './contracts'
 import type { Event, EventInput, EventQuery, Paginated } from '@eventflow/shared/types'
 import { toEvent } from '@/utils/mappers'
+import { env } from '@/config/env'
+import { BANNER } from '@/constants'
 
 export interface EventsServiceDeps {
   db: DbClient
@@ -103,9 +107,124 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
       )
     },
     async createEvent(input: EventInput, actor: AuthUser): Promise<Event> {
-      return notImplemented()
+      if (actor?.role !== 'admin') {
+        throw new ApiError('Unauthorized', 403, 'UNAUTHORIZED')
+      }
+
+      const { bannerUrl, bannerKey } = await handleBannerUpload(input.bannerUrl, _deps.s3)
+
+      const event = await _deps.db.event.create({
+        data: {
+          id: randomUUID(),
+          title: input.title,
+          summary: input.summary,
+          description: input.description,
+          category: input.category,
+          venueCity: input.venue.city,
+          venueAddress: input.venue.address,
+          venueName: input.venue.name,
+          venueState: input.venue.state,
+          organizerName: actor.name,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          bannerUrl: bannerUrl,
+          status: input.status,
+          featured: input.featured,
+          tags: [],
+          batches: {
+            create: input.batches.map((batch, index) => ({
+              id: batch.id ?? randomUUID(),
+              name: batch.name,
+              price: batch.price,
+              quantity: batch.quantity,
+              startsAt: batch.startsAt,
+              endsAt: batch.endsAt,
+              position: index
+            }))
+          }
+        },
+        include: eventInclude,
+      })
+
+      await _deps.audit.log({
+        action: 'CREATE',
+        entity: 'EVENT',
+        entityId: event.id,
+        data: {
+          title: event.title
+        }
+      })
+
+      if (bannerKey) {
+        await _deps.publisher.publish({
+          type: 'BANNER_UPLOADED',
+          eventId: event.id,
+          key: bannerKey,
+          occurredAt: new Date().toISOString()
+        })
+      }
+
+      await _deps.cache.invalidate(CACHE_SCOPE.catalog)
+
+      return toEvent(event)
     },
+
     async updateEvent(id: string, input: EventInput, actor: AuthUser): Promise<Event> {
+      const event = await _deps.db.event.findUnique({
+        where: { id: id }
+      })
+      if (!event) {
+        throw new ApiError("Evento não encontrado", 404, "EVENT_NOT_FOUND")
+      }
+      if (actor?.role !== 'admin') {
+        throw new ApiError("Unauthorized", 403, "UNAUTHORIZED")
+      }
+
+      const { bannerUrl, bannerKey } = await handleBannerUpload(input.bannerUrl, _deps.s3)
+
+      const updateEvent = await _deps.db.event.update({
+        where: { id: id },
+        data: {
+          title: input.title,
+          summary: input.summary,
+          description: input.description,
+          category: input.category,
+          venueName: input.venue.name,
+          venueCity: input.venue.city,
+          venueState: input.venue.state,
+          venueAddress: input.venue.address,
+          organizerName: event.organizerName,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          status: input.status,
+          featured: input.featured,
+          tags: event.tags,
+          bannerUrl: bannerUrl,
+        },
+        include: eventInclude
+      })
+
+      await _deps.audit.log({
+        action: 'UPDATE',
+        entity: 'EVENT',
+        entityId: updateEvent.id,
+        data: {
+          title: updateEvent.title
+        }
+      })
+
+      if (bannerKey) {
+        await _deps.publisher.publish({
+          type: 'BANNER_UPLOADED',
+          eventId: updateEvent.id,
+          key: bannerKey,
+          occurredAt: new Date().toISOString()
+        })
+      }
+
+      await _deps.cache.invalidate(CACHE_SCOPE.catalog)
+
+      return toEvent(updateEvent);
 
     },
     async deleteEvent(id: string, actor: AuthUser): Promise<void> {
@@ -118,7 +237,7 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
       if (actor?.role !== 'admin') {
         throw new ApiError('Unauthorized', 403, 'UNAUTHORIZED')
       }
-      const deleted = await _deps.db.event.delete({
+      await _deps.db.event.delete({
         where: { id: id },
       })
       await _deps.audit.log({
@@ -131,6 +250,37 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
       })
       await _deps.cache.invalidate(CACHE_SCOPE.catalog)
     },
+  }
+}
+
+async function handleBannerUpload(bannerInput: string, s3: S3Client): Promise<{ bannerUrl: string; bannerKey?: string }> {
+  if (!bannerInput.startsWith('data:')) {
+    return { bannerUrl: bannerInput }
+  }
+
+  const match = bannerInput.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/)
+  if (!match) {
+    throw new ApiError('Formato de imagem inválido', 400, 'INVALID_IMAGE')
+  }
+
+  const mimeType = match[1] as string
+  const base64Data = match[2] as string
+  const buffer = Buffer.from(base64Data, 'base64')
+  const extension = mimeType.split('/')[1] || 'png'
+  const key = `${BANNER.keyPrefix}/${randomUUID()}.${extension}`
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: env.s3Bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: mimeType,
+    })
+  )
+
+  return {
+    bannerUrl: `${env.s3PublicUrl}/${key}`,
+    bannerKey: key,
   }
 }
 
