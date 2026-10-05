@@ -1,7 +1,3 @@
-# Two AZs (required by the ALB, RDS and ElastiCache subnet groups).
-# Public subnets: ALB + EC2 (public IP, no NAT gateway to save lab credits).
-# Private subnets: RDS and ElastiCache only.
-
 data "aws_availability_zones" "available" {
   state = "available"
 }
@@ -76,7 +72,6 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
-# Free gateway endpoints: S3 and DynamoDB traffic stays inside AWS.
 resource "aws_vpc_endpoint" "gateway" {
   for_each = toset(["s3", "dynamodb"])
 

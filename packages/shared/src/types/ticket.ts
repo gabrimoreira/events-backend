@@ -1,9 +1,5 @@
 import type { EventCategory } from './event'
 
-/**
- * `processing` mirrors the async pipeline the backend will run
- * (SNS/SQS worker generating the PDF + QR code after payment).
- */
 export type TicketStatus = 'processing' | 'valid' | 'used' | 'cancelled'
 
 export interface Ticket {

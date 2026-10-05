@@ -12,7 +12,6 @@ import type { TicketsService } from '@/services/contracts'
 
 import { adminTicketQuerySchema, ticketScopeSchema } from './tickets.schemas'
 
-/** Endpoints from events-frontend/src/services/api/httpServices.ts (ticketsHttpService). */
 export function ticketsRoutes(service: TicketsService, auth: AuthOptions): Router {
   const router = Router()
   const authenticated = requireAuth(auth)

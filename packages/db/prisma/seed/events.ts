@@ -88,7 +88,6 @@ interface BatchSeed {
   price: number
   quantity: number
   sold: number
-  /** Sales window relative to today, in days */
   opens: number
   closes: number
   description?: string

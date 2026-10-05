@@ -12,7 +12,6 @@ import type { OrdersService } from '@/services/contracts'
 
 import { orderQuerySchema, purchaseSchema } from './orders.schemas'
 
-/** Endpoints from events-frontend/src/services/api/httpServices.ts (ordersHttpService). */
 export function ordersRoutes(service: OrdersService, auth: AuthOptions): Router {
   const router = Router()
   const authenticated = requireAuth(auth)

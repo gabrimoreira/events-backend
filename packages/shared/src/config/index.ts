@@ -1,10 +1,5 @@
 import { z } from 'zod'
 
-/**
- * Building blocks for each service's `config/env.ts`. A service composes the
- * groups it needs, e.g. `z.object({ ...baseEnv.shape, ...databaseEnv.shape })`,
- * and parses them once with `parseEnv` — nothing else reads `process.env`.
- */
 export const baseEnv = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
@@ -26,7 +21,6 @@ export const redisEnv = z.object({
 
 export const awsEnv = z.object({
   AWS_REGION: z.string().default('us-east-1'),
-  /** LocalStack endpoint; unset on AWS. */
   AWS_ENDPOINT_URL: z.url().optional(),
 })
 
@@ -44,7 +38,6 @@ export const messagingEnv = z.object({
   EVENTS_TOPIC_ARN: z.string().min(1),
 })
 
-/** Validates the environment and fails fast with every problem listed. Empty values count as unset. */
 export function parseEnv<T extends z.ZodType>(schema: T, source: NodeJS.ProcessEnv = process.env) {
   const defined = Object.fromEntries(Object.entries(source).filter(([, value]) => value !== ''))
   const result = schema.safeParse(defined)
@@ -57,7 +50,6 @@ export function parseEnv<T extends z.ZodType>(schema: T, source: NodeJS.ProcessE
   return result.data
 }
 
-/** "a, b" → ["a", "b"] */
 export function splitList(value: string): string[] {
   return value
     .split(',')

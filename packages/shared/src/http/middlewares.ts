@@ -7,7 +7,6 @@ import type { Logger } from '../utils'
 interface CommonMiddlewareOptions {
   logger: Logger
   corsOrigins: string[]
-  /** Event banners arrive as data URLs (2 MB image ≈ 2.7 MB of base64). */
   bodyLimit?: string
 }
 

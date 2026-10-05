@@ -12,9 +12,7 @@ export interface AuditEntry {
   action: AuditAction
   entity: AuditEntity
   entityId: string
-  /** User who performed the action; omitted for anonymous or system actions. */
   actorId?: string
-  /** Data manipulated by the action — payload, snapshot or diff. */
   data?: unknown
 }
 
@@ -29,7 +27,6 @@ interface AuditLoggerOptions {
 const MAX_STRING_LENGTH = 2_048
 const SENSITIVE_KEY = /password|token|secret/i
 
-/** Keeps items far below DynamoDB's 400 KB limit (banners arrive as data URLs) and drops secrets. */
 function sanitize(value: unknown): unknown {
   if (typeof value === 'string') {
     return value.length > MAX_STRING_LENGTH
@@ -48,11 +45,6 @@ function sanitize(value: unknown): unknown {
   return value
 }
 
-/**
- * CRUD audit trail in DynamoDB. Items are keyed by entity (`pk = EVENT#evt_123`)
- * and sorted by time (`sk = <ISO timestamp>#<uuid>`); the `actor-index` GSI lists
- * everything a user did.
- */
 export function createAuditLogger({
   client,
   tableName,
@@ -64,7 +56,6 @@ export function createAuditLogger({
     async log(entry: AuditEntry): Promise<void> {
       if (entry.action === 'READ' && !logReads) return
       const timestamp = new Date().toISOString()
-      // JSON round-trip turns Dates into ISO strings and Prisma Decimals into strings.
       const data =
         entry.data === undefined ? undefined : sanitize(JSON.parse(JSON.stringify(entry.data)))
       try {
@@ -85,7 +76,6 @@ export function createAuditLogger({
           }),
         )
       } catch (error) {
-        // Auditing must not fail the user's request; the failure stays visible in the logs.
         logger.error({ err: error, audit: { ...entry, data: undefined } }, 'audit log write failed')
       }
     },

@@ -9,10 +9,6 @@ import { createMockOrdersAndTickets } from './orders'
 import { createMockUsers } from './users'
 import { DEMO_CREDENTIALS } from './utils'
 
-/**
- * Loads the same demo data the frontend mocks use (dates relative to today).
- * Idempotent: wipes the tables first. Run with `npm run db:seed`.
- */
 const databaseUrl = process.env.DATABASE_URL
 if (!databaseUrl) throw new Error('DATABASE_URL is not set')
 
@@ -42,7 +38,6 @@ async function main() {
       users.map(async ({ avatarUrl, ...user }) => ({
         ...user,
         avatarUrl: avatarUrl ?? null,
-        // Only the demo accounts can log in; the others exist to own seeded orders.
         passwordHash: await bcrypt.hash(passwords[user.email] ?? randomUUID(), 10),
       })),
     ),
@@ -106,7 +101,6 @@ async function main() {
     })),
   })
 
-  // Seeded orders use explicit numbers; continue the sequence after them.
   await db.$executeRaw`SELECT setval(pg_get_serial_sequence('orders', 'number'), (SELECT MAX(number) FROM orders))`
 
   console.log(

@@ -5,7 +5,6 @@ const category = z.enum(['shows', 'festivais', 'esportes', 'tecnologia', 'cultur
 const status = z.enum(['draft', 'published', 'cancelled', 'finished'])
 const isoDate = z.iso.datetime({ offset: true })
 
-/** GET /events — mirrors EventQuery (events-frontend/src/types/event.ts). */
 export const eventQuerySchema = z.object({
   search: z.string().trim().optional(),
   category: category.optional(),
@@ -28,7 +27,6 @@ const batchSchema = z.object({
   endsAt: isoDate,
 })
 
-/** POST/PUT /events — mirrors EventInput. `bannerUrl` is an http(s) URL or a data URL (upload). */
 export const eventInputSchema = z
   .object({
     title: z.string().trim().min(3),

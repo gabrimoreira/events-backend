@@ -1,8 +1,3 @@
-# Local environment. AWS services are emulated by LocalStack (S3, SNS, SQS, DynamoDB);
-# Postgres and Redis stand in for RDS and ElastiCache.
-#
-#   docker compose up -d                        → infra + gateway (services run on the host: npm run dev)
-#   docker compose --profile services up -d     → everything in containers
 name: eventflow
 
 x-service: &service
@@ -69,14 +64,12 @@ services:
       interval: 5s
       retries: 20
 
-  # nginx: serves the frontend build and routes /api/* to the services.
-  # Needs ../events-frontend (sibling clone) — it is built inside the image.
   gateway:
     build:
       context: .
       dockerfile: apps/gateway/Dockerfile
       additional_contexts:
-        frontend: ../events-frontend
+        frontend: ${FRONTEND_PATH:-../events-frontend}
       args:
         VITE_API_URL: http://localhost:${GATEWAY_PORT:-3000}/api
     environment:

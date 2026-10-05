@@ -4,7 +4,6 @@ export type { Logger }
 
 interface LoggerOptions {
   level?: string
-  /** Human-readable output for local development; JSON otherwise (CloudWatch friendly). */
   pretty?: boolean
 }
 

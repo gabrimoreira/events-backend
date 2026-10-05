@@ -19,7 +19,6 @@ export function createApp(context: AppContext) {
 
   const app = express()
   app.disable('x-powered-by')
-  // Behind nginx and the ALB: trust X-Forwarded-* for client IPs.
   app.set('trust proxy', true)
 
   app.use(commonMiddlewares({ logger, corsOrigins: env.corsOrigins }))

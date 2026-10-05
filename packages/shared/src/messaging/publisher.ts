@@ -9,7 +9,6 @@ interface PublisherOptions {
   logger: Logger
 }
 
-/** Publishes domain messages to SNS; `type` goes as an attribute for the queue filter policies. */
 export function createPublisher({ client, topicArn, logger }: PublisherOptions) {
   return {
     async publish(message: DomainMessage): Promise<void> {

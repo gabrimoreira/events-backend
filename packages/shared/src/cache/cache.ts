@@ -2,10 +2,6 @@ import type { Logger } from '../utils'
 
 import type { Redis } from './redis'
 
-/**
- * Cache scopes shared across services — a purchase (sales-service) must
- * invalidate what catalog-service cached, so the names live here.
- */
 export const CACHE_SCOPE = {
   catalog: 'catalog',
   dashboard: 'dashboard',
@@ -13,11 +9,6 @@ export const CACHE_SCOPE = {
 
 export type CacheScope = (typeof CACHE_SCOPE)[keyof typeof CACHE_SCOPE]
 
-/**
- * Cache-aside over Redis (ElastiCache). Keys are versioned per scope, so a single
- * `invalidate(scope)` drops every list/detail at once; stale versions expire by TTL.
- * Redis failures never break a request — the loader result is served instead.
- */
 export function createCache(redis: Redis, logger: Logger) {
   const versionKey = (scope: CacheScope) => `${scope}:version`
 

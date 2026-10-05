@@ -1,4 +1,3 @@
-/** Domain types mirrored from events-frontend/src/types — keep both in sync. */
 export * from './api'
 export * from './dashboard'
 export * from './event'

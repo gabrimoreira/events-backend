@@ -6,7 +6,6 @@ export const orderInclude = {
 
 export type OrderWithItems = Prisma.OrderGetPayload<{ include: typeof orderInclude }>
 
-/** Data access for `orders` and `order_items` (owned by sales-service). */
 export function createOrdersRepository(db: DbClient) {
   return {
     findById: (id: string) => db.order.findUnique({ where: { id }, include: orderInclude }),

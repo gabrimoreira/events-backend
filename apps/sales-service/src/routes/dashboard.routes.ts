@@ -3,7 +3,6 @@ import { Router } from 'express'
 
 import type { DashboardService } from '@/services/contracts'
 
-/** Endpoint from events-frontend/src/services/api/httpServices.ts (dashboardHttpService). */
 export function dashboardRoutes(service: DashboardService, auth: AuthOptions): Router {
   const router = Router()
 

@@ -3,7 +3,6 @@ import { z } from 'zod'
 
 import { MAX_TICKETS_PER_ORDER } from '@/constants'
 
-/** GET /orders — mirrors OrderQuery (events-frontend/src/types/order.ts). */
 export const orderQuerySchema = z.object({
   status: z.enum(['paid', 'pending', 'cancelled', 'all']).optional(),
   eventId: z.string().optional(),
@@ -13,7 +12,6 @@ export const orderQuerySchema = z.object({
   pageSize: query.pageSize,
 })
 
-/** POST /orders — mirrors Purchase. */
 export const purchaseSchema = z.object({
   eventId: z.string().min(1),
   items: z

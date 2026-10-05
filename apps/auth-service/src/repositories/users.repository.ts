@@ -1,6 +1,5 @@
 import type { DbClient, Prisma } from '@eventflow/db'
 
-/** Data access for the `users` table (owned by auth-service). */
 export function createUsersRepository(db: DbClient) {
   return {
     findById: (id: string) => db.user.findUnique({ where: { id } }),

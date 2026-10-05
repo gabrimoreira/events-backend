@@ -22,10 +22,6 @@ const raw = parseEnv(
   }),
 )
 
-/**
- * Centralized, typed access to environment variables.
- * Never read `process.env` directly outside this file.
- */
 export const env = {
   port: raw.PORT,
   isDev: raw.NODE_ENV === 'development',

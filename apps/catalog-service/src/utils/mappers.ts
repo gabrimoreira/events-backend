@@ -16,7 +16,6 @@ export function toTicketBatch(record: BatchRecord): TicketBatch {
   }
 }
 
-/** Database row → API contract (events-frontend/src/types/event.ts). */
 export function toEvent(record: EventWithBatches): Event {
   return {
     id: record.id,

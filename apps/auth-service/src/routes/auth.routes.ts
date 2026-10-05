@@ -5,7 +5,6 @@ import type { AuthService } from '@/services/contracts'
 
 import { loginSchema, profileSchema, registerSchema } from './auth.schemas'
 
-/** Endpoints from events-frontend/src/services/api/httpServices.ts (authHttpService). */
 export function authRoutes(service: AuthService, auth: AuthOptions): Router {
   const router = Router()
   const authenticated = requireAuth(auth)

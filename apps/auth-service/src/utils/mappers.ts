@@ -1,7 +1,6 @@
 import type { User as UserRecord } from '@eventflow/db'
 import type { User } from '@eventflow/shared/types'
 
-/** Database row → API contract (never exposes the password hash). */
 export function toUser(record: UserRecord): User {
   return {
     id: record.id,

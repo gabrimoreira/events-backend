@@ -4,7 +4,6 @@ import { ZodError } from 'zod'
 import { ApiError } from '../types'
 import type { Logger } from '../utils'
 
-/** Placeholder for routes that are registered but not built yet. */
 export function notImplemented(): never {
   throw new ApiError('Não implementado.', 501, 'NOT_IMPLEMENTED')
 }
@@ -13,15 +12,10 @@ export const notFoundHandler: RequestHandler = (_req, _res, next) => {
   next(new ApiError('Rota não encontrada.', 404, 'ROUTE_NOT_FOUND'))
 }
 
-/** body-parser errors carry `type` and `status` */
 function isBodyParserError(error: unknown): error is { type: string; status: number } {
   return typeof error === 'object' && error !== null && 'type' in error && 'status' in error
 }
 
-/**
- * Every error leaves as `{ message, code }` with the proper status — the shape
- * the frontend's apiClient turns into an ApiError shown on screen.
- */
 export function errorHandler(logger: Logger): ErrorRequestHandler {
   return (error, req, res, _next) => {
     if (error instanceof ApiError) {

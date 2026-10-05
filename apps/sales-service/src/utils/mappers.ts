@@ -3,7 +3,6 @@ import type { Order, Ticket } from '@eventflow/shared/types'
 import type { OrderWithItems } from '@/repositories/orders.repository'
 import type { TicketWithEvent } from '@/repositories/tickets.repository'
 
-/** Database row → API contract (events-frontend/src/types/order.ts). */
 export function toOrder(record: OrderWithItems): Order {
   return {
     id: record.id,
@@ -34,7 +33,6 @@ export function toOrder(record: OrderWithItems): Order {
   }
 }
 
-/** Database row → API contract (events-frontend/src/types/ticket.ts). */
 export function toTicket(record: TicketWithEvent, pdfUrl?: string): Ticket {
   return {
     id: record.id,

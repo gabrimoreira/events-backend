@@ -18,7 +18,6 @@ interface ConsumerOptions {
   queueUrl: string
   logger: Logger
   handle: (message: DomainMessage) => Promise<void>
-  /** Stops the loop (graceful shutdown). */
   signal: AbortSignal
   batchSize?: number
   waitTimeSeconds?: number
@@ -30,7 +29,6 @@ export async function resolveQueueUrl(client: SQSClient, queueName: string): Pro
   return QueueUrl
 }
 
-/** Accepts raw deliveries and, defensively, SNS envelopes (subscription without RawMessageDelivery). */
 function parseMessage(body: string | undefined): DomainMessage {
   let payload: unknown = JSON.parse(body ?? 'null')
   if (payload && typeof payload === 'object' && 'Type' in payload && 'Message' in payload) {
@@ -43,11 +41,6 @@ function parseMessage(body: string | undefined): DomainMessage {
   return payload as DomainMessage
 }
 
-/**
- * Long-polls a queue until `signal` aborts. A message is deleted only after
- * `handle` succeeds; failures become visible again after the visibility timeout
- * and, after 3 attempts, move to the DLQ — so handlers must be idempotent.
- */
 export async function consumeQueue({
   client,
   queueUrl,

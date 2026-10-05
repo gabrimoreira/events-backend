@@ -1,11 +1,3 @@
-// Single PostgreSQL database (Amazon RDS) shared by the services.
-// Table ownership is a convention — each service writes only to its own tables:
-//   auth-service     → users
-//   catalog-service  → events, ticket_batches
-//   sales-service    → orders, order_items, tickets (+ ticket_batches.sold inside the purchase transaction)
-//   processing-worker→ tickets.status/pdf_key and events.banner_variants
-// IDs are prefixed strings (usr_, evt_, bat_, ord_, tkt_) to match the frontend contract.
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -85,9 +77,7 @@ model Event {
   venueAddress         String        @map("venue_address")
   venueCity            String        @map("venue_city")
   venueState           String        @map("venue_state")
-  /// Original banner URL (S3 or external).
   bannerUrl            String        @map("banner_url")
-  /// Resized versions produced by the worker: { thumb, card, hero }.
   bannerVariants       Json?         @map("banner_variants")
   organizerName        String        @map("organizer_name")
   organizerVerified    Boolean       @default(false) @map("organizer_verified")
@@ -114,7 +104,6 @@ model TicketBatch {
   name        String
   description String?
   price       Decimal  @db.Decimal(10, 2)
-  /// Capacity. The migration adds CHECK (sold BETWEEN 0 AND quantity) as a last line of defense against overselling.
   quantity    Int
   sold        Int      @default(0)
   position    Int      @default(0)
@@ -133,7 +122,6 @@ model TicketBatch {
 
 model Order {
   id            String        @id
-  /// Sequential number shown as "EF-<number>" (sequence starts at 1001).
   number        Int           @unique @default(autoincrement())
   customerId    String        @map("customer_id")
   customerName  String        @map("customer_name")
@@ -190,7 +178,6 @@ model Ticket {
   holderEmail String       @map("holder_email")
   price       Decimal      @db.Decimal(10, 2)
   status      TicketStatus @default(processing)
-  /// S3 key of the generated PDF; the API returns a pre-signed URL as `pdfUrl`.
   pdfKey      String?      @map("pdf_key")
   issuedAt    DateTime     @default(now()) @map("issued_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")

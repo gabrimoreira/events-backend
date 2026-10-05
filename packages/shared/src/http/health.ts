@@ -16,7 +16,6 @@ async function run(check: HealthCheck): Promise<string> {
   }
 }
 
-/** `GET /health` — 200 when every dependency answers, 503 otherwise. */
 export function healthRouter(service: string, checks: Record<string, HealthCheck>): Router {
   const router = Router()
   router.get('/health', async (_req, res) => {

@@ -23,7 +23,6 @@ export function createApp(context: AppContext) {
 
   const app = express()
   app.disable('x-powered-by')
-  // Behind nginx and the ALB: trust X-Forwarded-* for client IPs.
   app.set('trust proxy', true)
 
   app.use(commonMiddlewares({ logger, corsOrigins: env.corsOrigins }))
@@ -33,7 +32,7 @@ export function createApp(context: AppContext) {
       redis: () => redis.ping(),
     }),
   )
-  app.use('/api', ordersRoutes(createOrdersService({ db, cache, audit, publisher }), auth))
+  app.use('/api', ordersRoutes(createOrdersService({ db, cache, audit, publisher, logger }), auth))
   app.use('/api', ticketsRoutes(createTicketsService({ db, s3, audit }), auth))
   app.use('/api', dashboardRoutes(createDashboardService({ db, cache }), auth))
   app.use(notFoundHandler)

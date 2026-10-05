@@ -9,8 +9,16 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1146.0",
     "@eventflow/db": "*",
     "@eventflow/shared": "*",
+    "pdfkit": "^0.20.2",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.5",
     "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/pdfkit": "^0.17.6",
+    "@types/qrcode": "^1.5.6"
   }
 }

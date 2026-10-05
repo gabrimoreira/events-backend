@@ -1,6 +1,5 @@
 import type { Logger } from './logger'
 
-/** Runs `cleanup` once on SIGTERM/SIGINT (ASG scale-in, docker stop, Ctrl+C) and exits. */
 export function onShutdown(logger: Logger, cleanup: () => Promise<void>): void {
   let stopping = false
   const stop = async (signal: NodeJS.Signals) => {

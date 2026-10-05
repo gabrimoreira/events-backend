@@ -49,7 +49,6 @@ interface DemoOrderSeed {
   daysAgo: number
 }
 
-/** Orders that guarantee the demo customer has upcoming and past tickets. */
 const DEMO_CUSTOMER_ORDERS: DemoOrderSeed[] = [
   { eventId: 'evt_rock-festival', batchIndex: 2, quantity: 1, daysAgo: 9 },
   { eventId: 'evt_tech-summit', batchIndex: 1, quantity: 1, daysAgo: 14 },

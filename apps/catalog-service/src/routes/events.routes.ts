@@ -13,7 +13,6 @@ import type { EventsService } from '@/services/contracts'
 
 import { eventInputSchema, eventQuerySchema } from './events.schemas'
 
-/** Endpoints from events-frontend/src/services/api/httpServices.ts (eventsHttpService). */
 export function eventsRoutes(service: EventsService, auth: AuthOptions): Router {
   const router = Router()
   const admin = [requireAuth(auth), requireAdmin]
@@ -23,7 +22,6 @@ export function eventsRoutes(service: EventsService, auth: AuthOptions): Router 
     res.json(await service.getEvents(parseWith(eventQuerySchema, req.query), req.user))
   })
 
-  // Before /events/:id so "cities" is not taken as an id.
   router.get('/events/cities', async (_req, res) => {
     res.json(await service.getEventCities())
   })

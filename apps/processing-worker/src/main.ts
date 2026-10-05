@@ -6,10 +6,6 @@ import { SERVICE_NAME } from '@/constants'
 import { createContext } from '@/context'
 import { dispatch } from '@/handlers'
 
-/**
- * Decoupled from the APIs: they publish to SNS, the subscriptions fan out to one
- * SQS queue per job type, and this process consumes both queues.
- */
 const context = createContext()
 const { logger, sqs } = context
 const controller = new AbortController()

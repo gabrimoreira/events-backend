@@ -1,6 +1,5 @@
 import type { DbClient, Prisma } from '@eventflow/db'
 
-/** Event and batch data denormalized into every Ticket response. */
 export const ticketInclude = {
   event: {
     select: {
@@ -18,7 +17,6 @@ export const ticketInclude = {
 
 export type TicketWithEvent = Prisma.TicketGetPayload<{ include: typeof ticketInclude }>
 
-/** Data access for `tickets` (owned by sales-service; the worker updates status/pdf_key). */
 export function createTicketsRepository(db: DbClient) {
   return {
     findById: (id: string) => db.ticket.findUnique({ where: { id }, include: ticketInclude }),

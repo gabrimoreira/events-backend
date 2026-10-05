@@ -1,7 +1,3 @@
-# One image per Node service, selected with the APP build arg:
-#   docker build --build-arg APP=auth-service -t eventflow/auth-service .
-# APP: auth-service | catalog-service | sales-service | processing-worker
-
 FROM node:22-alpine AS build
 WORKDIR /repo
 COPY package.json package-lock.json ./
@@ -12,13 +8,11 @@ COPY apps/auth-service/package.json apps/auth-service/
 COPY apps/catalog-service/package.json apps/catalog-service/
 COPY apps/sales-service/package.json apps/sales-service/
 COPY apps/processing-worker/package.json apps/processing-worker/
-# postinstall generates the Prisma client
 RUN npm ci
 COPY . .
 ARG APP
 RUN test -n "$APP" && npm run build -w "apps/$APP"
 
-# Applies pending migrations (run once per deploy): docker build --target migrate …
 FROM build AS migrate
 CMD ["npm", "run", "migrate:deploy", "-w", "@eventflow/db"]
 

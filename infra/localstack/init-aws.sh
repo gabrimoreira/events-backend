@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Runs inside LocalStack when it becomes ready (/etc/localstack/init/ready.d).
-# Mirrors what Terraform creates on AWS, so the services run unchanged locally.
 set -euo pipefail
 
 REGION=us-east-1
@@ -36,7 +34,6 @@ awslocal dynamodb create-table \
 echo "[init-aws] SNS topic"
 TOPIC_ARN=$(awslocal sns create-topic --name "$TOPIC" --query TopicArn --output text)
 
-# queue name + message type routed to it
 create_queue() {
   local name=$1 type=$2
   local dlq_url dlq_arn queue_url queue_arn

@@ -1,17 +1,13 @@
 import type { Event } from '@eventflow/shared/types'
 
-/** Helpers copied from the frontend mocks so the seed matches the mocked demo. */
-
 const DAY_MS = 86_400_000
 const TZ_OFFSET = '-03:00'
 
-/** Demo accounts — the same ones the frontend login screen offers. */
 export const DEMO_CREDENTIALS = {
   customer: { email: 'ana@eventflow.com', password: 'demo123' },
   admin: { email: 'admin@eventflow.com', password: 'admin123' },
 } as const
 
-/** Service fee charged on top of the ticket subtotal (frontend: utils/pricing.ts). */
 export const SERVICE_FEE_RATE = 0.1
 
 const round = (value: number) => Math.round(value * 100) / 100
@@ -25,7 +21,6 @@ export function isEventPast(event: Pick<Event, 'endsAt'>, now = Date.now()): boo
   return new Date(event.endsAt).getTime() < now
 }
 
-/** ISO timestamp `days` from today at a wall-clock time in America/Fortaleza. */
 export function daysFromNow(days: number, time = '20:00'): string {
   const target = new Date(Date.now() + days * DAY_MS)
   const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Fortaleza' }).format(target)
@@ -36,7 +31,6 @@ export function addHours(iso: string, hours: number): string {
   return new Date(new Date(iso).getTime() + hours * 3_600_000).toISOString()
 }
 
-/** Small deterministic PRNG so generated seeds are stable between runs. */
 export function createRandom(seed: number) {
   let state = seed >>> 0
   const next = () => {

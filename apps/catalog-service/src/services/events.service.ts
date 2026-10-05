@@ -4,8 +4,9 @@ import { PutObjectCommand, type S3Client } from '@aws-sdk/client-s3'
 import type { AuditLogger } from '@eventflow/shared/audit'
 import { CACHE_SCOPE, type Cache } from '@eventflow/shared/cache'
 import { ApiError, type AuthUser } from '@eventflow/shared/http'
+import { createId } from '@eventflow/shared/utils'
 import type { Publisher } from '@eventflow/shared/messaging'
-import type { DbClient, Prisma } from '@eventflow/db'
+import { type DbClient, Prisma } from '@eventflow/db'
 
 import type { EventsService } from './contracts'
 import type { Event, EventInput, EventQuery, Paginated } from '@eventflow/shared/types'
@@ -25,86 +26,62 @@ const eventInclude = {
   batches: { orderBy: { position: 'asc' as const } },
 }
 
-/**
- * Event catalog. Rules to port from events-frontend/src/services/mocks/mockServices.ts:
- * filters/sorting/pagination of the listing, published-only for the public,
- * `EVENT_NOT_FOUND` 404. Reads go through `cache.remember(CACHE_SCOPE.catalog, …)`;
- * writes call `cache.invalidate`, log `EVENT` actions and, when `bannerUrl` is a
- * data URL, upload it to S3 (BANNER.keyPrefix) and publish `BANNER_UPLOADED`.
- *
- * Dependencies are already wired — rename `_deps` when implementing.
- */
 export function createEventsService(_deps: EventsServiceDeps): EventsService {
   return {
     async getEvents(query: EventQuery, actor?: AuthUser): Promise<Paginated<Event>> {
       const cacheKey = `list:${JSON.stringify(query)}:role_${actor?.role ?? 'guest'}`
 
-      return _deps.cache.remember(
-        CACHE_SCOPE.catalog,
-        cacheKey,
-        60,
-        async () => {
-          const { page = 1, pageSize = 12 } = query
-          const skip = (page - 1) * pageSize
+      return _deps.cache.remember(CACHE_SCOPE.catalog, cacheKey, 60, async () => {
+        const { page = 1, pageSize = 12 } = query
+        const skip = (page - 1) * pageSize
 
-          const where = buildWhereClause(query, actor)
-          const orderBy = buildOrderByClause(query.sort)
+        const where = buildWhereClause(query, actor)
+        const orderBy = buildOrderByClause(query.sort)
 
-          const [total, events] = await _deps.db.$transaction([
-            _deps.db.event.count({ where }),
-            _deps.db.event.findMany({
-              where,
-              orderBy,
-              skip,
-              take: pageSize,
-              include: eventInclude
-            })
-          ])
+        const [total, events] = await _deps.db.$transaction([
+          _deps.db.event.count({ where }),
+          _deps.db.event.findMany({
+            where,
+            orderBy,
+            skip,
+            take: pageSize,
+            include: eventInclude,
+          }),
+        ])
 
-          return {
-            items: events.map(toEvent),
-            total,
-            page,
-            pageSize,
-            totalPages: Math.ceil(total / pageSize)
-          }
+        return {
+          items: events.map(toEvent),
+          total,
+          page,
+          pageSize,
+          totalPages: Math.ceil(total / pageSize),
         }
-      )
+      })
     },
     async getEventById(id: string, actor?: AuthUser): Promise<Event> {
       const cacheKey = `detail:${id}:role_${actor?.role ?? 'guest'}`
 
-      return _deps.cache.remember(
-        CACHE_SCOPE.catalog,
-        cacheKey,
-        60,
-        async () => {
-          const event = await _deps.db.event.findUnique({
-            where: { id },
-            include: eventInclude
-          })
-          if (!event || (actor?.role !== "admin" && event.status !== "published")) {
-            throw new ApiError("Evento não encontrado", 404, "EVENT_NOT_FOUND")
-          }
-          return toEvent(event)
+      return _deps.cache.remember(CACHE_SCOPE.catalog, cacheKey, 60, async () => {
+        const event = await _deps.db.event.findUnique({
+          where: { id },
+          include: eventInclude,
+        })
+        if (!event || (actor?.role !== 'admin' && event.status !== 'published')) {
+          throw new ApiError('Evento não encontrado', 404, 'EVENT_NOT_FOUND')
         }
-      )
+        return toEvent(event)
+      })
     },
     async getEventCities(): Promise<string[]> {
-      return _deps.cache.remember(
-        CACHE_SCOPE.catalog,
-        'cities',
-        300,
-        async () => {
-          const events = await _deps.db.event.findMany({
-            where: { status: 'published' },
-            select: { venueCity: true },
-            distinct: ['venueCity'],
-            orderBy: { venueCity: 'asc' }
-          })
-          return events.map((e) => e.venueCity)
-        }
-      )
+      return _deps.cache.remember(CACHE_SCOPE.catalog, 'cities', 300, async () => {
+        const events = await _deps.db.event.findMany({
+          where: { status: 'published' },
+          select: { venueCity: true },
+          distinct: ['venueCity'],
+          orderBy: { venueCity: 'asc' },
+        })
+        return events.map((e) => e.venueCity)
+      })
     },
     async createEvent(input: EventInput, actor: AuthUser): Promise<Event> {
       if (actor?.role !== 'admin') {
@@ -115,7 +92,7 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
 
       const event = await _deps.db.event.create({
         data: {
-          id: randomUUID(),
+          id: createId('evt'),
           title: input.title,
           summary: input.summary,
           description: input.description,
@@ -133,15 +110,15 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
           tags: [],
           batches: {
             create: input.batches.map((batch, index) => ({
-              id: batch.id ?? randomUUID(),
+              id: batch.id ?? createId('bat'),
               name: batch.name,
               price: batch.price,
               quantity: batch.quantity,
               startsAt: batch.startsAt,
               endsAt: batch.endsAt,
-              position: index
-            }))
-          }
+              position: index,
+            })),
+          },
         },
         include: eventInclude,
       })
@@ -150,9 +127,10 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
         action: 'CREATE',
         entity: 'EVENT',
         entityId: event.id,
+        actorId: actor.id,
         data: {
-          title: event.title
-        }
+          title: event.title,
+        },
       })
 
       if (bannerKey) {
@@ -160,7 +138,7 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
           type: 'BANNER_UPLOADED',
           eventId: event.id,
           key: bannerKey,
-          occurredAt: new Date().toISOString()
+          occurredAt: new Date().toISOString(),
         })
       }
 
@@ -171,13 +149,13 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
 
     async updateEvent(id: string, input: EventInput, actor: AuthUser): Promise<Event> {
       const event = await _deps.db.event.findUnique({
-        where: { id: id }
+        where: { id: id },
       })
       if (!event) {
-        throw new ApiError("Evento não encontrado", 404, "EVENT_NOT_FOUND")
+        throw new ApiError('Evento não encontrado', 404, 'EVENT_NOT_FOUND')
       }
       if (actor?.role !== 'admin') {
-        throw new ApiError("Unauthorized", 403, "UNAUTHORIZED")
+        throw new ApiError('Unauthorized', 403, 'UNAUTHORIZED')
       }
 
       const { bannerUrl, bannerKey } = await handleBannerUpload(input.bannerUrl, _deps.s3)
@@ -200,17 +178,19 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
           featured: input.featured,
           tags: event.tags,
           bannerUrl: bannerUrl,
+          ...(bannerKey && { bannerVariants: Prisma.DbNull }),
         },
-        include: eventInclude
+        include: eventInclude,
       })
 
       await _deps.audit.log({
         action: 'UPDATE',
         entity: 'EVENT',
         entityId: updateEvent.id,
+        actorId: actor.id,
         data: {
-          title: updateEvent.title
-        }
+          title: updateEvent.title,
+        },
       })
 
       if (bannerKey) {
@@ -218,14 +198,13 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
           type: 'BANNER_UPLOADED',
           eventId: updateEvent.id,
           key: bannerKey,
-          occurredAt: new Date().toISOString()
+          occurredAt: new Date().toISOString(),
         })
       }
 
       await _deps.cache.invalidate(CACHE_SCOPE.catalog)
 
-      return toEvent(updateEvent);
-
+      return toEvent(updateEvent)
     },
     async deleteEvent(id: string, actor: AuthUser): Promise<void> {
       const event = await _deps.db.event.findUnique({
@@ -244,16 +223,20 @@ export function createEventsService(_deps: EventsServiceDeps): EventsService {
         action: 'DELETE',
         entity: 'EVENT',
         entityId: event.id,
+        actorId: actor.id,
         data: {
-          title: event.title
-        }
+          title: event.title,
+        },
       })
       await _deps.cache.invalidate(CACHE_SCOPE.catalog)
     },
   }
 }
 
-async function handleBannerUpload(bannerInput: string, s3: S3Client): Promise<{ bannerUrl: string; bannerKey?: string }> {
+async function handleBannerUpload(
+  bannerInput: string,
+  s3: S3Client,
+): Promise<{ bannerUrl: string; bannerKey?: string }> {
   if (!bannerInput.startsWith('data:')) {
     return { bannerUrl: bannerInput }
   }
@@ -275,7 +258,7 @@ async function handleBannerUpload(bannerInput: string, s3: S3Client): Promise<{ 
       Key: key,
       Body: buffer,
       ContentType: mimeType,
-    })
+    }),
   )
 
   return {
@@ -315,7 +298,7 @@ function buildWhereClause(query: EventQuery, actor?: AuthUser): Prisma.EventWher
       { title: { contains: search, mode: 'insensitive' } },
       { summary: { contains: search, mode: 'insensitive' } },
       { venueName: { contains: search, mode: 'insensitive' } },
-      { organizerName: { contains: search, mode: 'insensitive' } }
+      { organizerName: { contains: search, mode: 'insensitive' } },
     ]
   }
 
@@ -324,14 +307,14 @@ function buildWhereClause(query: EventQuery, actor?: AuthUser): Prisma.EventWher
       'free-50': { lte: 50 },
       '50-100': { gte: 50, lte: 100 },
       '100-200': { gte: 100, lte: 200 },
-      '200-plus': { gte: 200 }
+      '200-plus': { gte: 200 },
     }
 
     if (priceFilters[priceRange]) {
       where.batches = {
         some: {
-          price: priceFilters[priceRange]
-        }
+          price: priceFilters[priceRange],
+        },
       }
     }
   }
@@ -339,7 +322,9 @@ function buildWhereClause(query: EventQuery, actor?: AuthUser): Prisma.EventWher
   return where
 }
 
-function buildOrderByClause(sort?: string): Prisma.EventOrderByWithRelationInput | Prisma.EventOrderByWithRelationInput[] {
+function buildOrderByClause(
+  sort?: string,
+): Prisma.EventOrderByWithRelationInput | Prisma.EventOrderByWithRelationInput[] {
   switch (sort) {
     case 'recent':
       return { createdAt: 'desc' }

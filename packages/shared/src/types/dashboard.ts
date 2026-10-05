@@ -2,7 +2,6 @@ import type { EventCategory } from './event'
 
 export interface KpiValue {
   value: number
-  /** Relative change vs. previous period, e.g. 0.12 = +12% */
   change: number
 }
 

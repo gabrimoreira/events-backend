@@ -1,6 +1,5 @@
 import type { Paginated } from '../types'
 
-/** In-memory pagination with the same clamping rules as the frontend mocks. */
 export function paginate<T>(items: T[], page = 1, pageSize = 10): Paginated<T> {
   const total = items.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -15,7 +14,6 @@ export function paginate<T>(items: T[], page = 1, pageSize = 10): Paginated<T> {
   }
 }
 
-/** `skip`/`take` for database queries, plus the envelope builder for the result. */
 export function pageWindow(page = 1, pageSize = 10) {
   const safePage = Math.max(page, 1)
   return {
