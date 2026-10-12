@@ -1,5 +1,6 @@
 FROM node:22-alpine AS web
 WORKDIR /web
+ENV NPM_CONFIG_FETCH_RETRIES=5 NPM_CONFIG_FETCH_TIMEOUT=120000
 COPY --from=frontend package.json package-lock.json ./
 RUN npm ci
 COPY --from=frontend index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json ./
@@ -15,4 +16,5 @@ ENV AUTH_SERVICE_URL=http://auth-service:3001 \
     CATALOG_SERVICE_URL=http://catalog-service:3002 \
     SALES_SERVICE_URL=http://sales-service:3003
 COPY apps/gateway/default.conf.template /etc/nginx/templates/default.conf.template
+COPY apps/gateway/40-api-host.sh /docker-entrypoint.d/40-api-host.sh
 COPY --from=web /web/dist /usr/share/nginx/html

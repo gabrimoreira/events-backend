@@ -1,0 +1,75 @@
+#!/bin/bash
+# Rendered by Terraform. Role: ${role}
+set -uxo pipefail
+exec > >(tee /var/log/user-data.log) 2>&1
+
+dnf install -y docker
+systemctl enable --now docker
+
+REGISTRY=${registry}
+REGION=${region}
+
+for i in $(seq 1 30); do
+  aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY" && break
+  sleep 10
+done
+
+# Images are pushed by infra/scripts/deploy.sh; wait for them if the instance came up first.
+pull() {
+  for i in $(seq 1 90); do
+    docker pull "$REGISTRY/${project}/$1:latest" && return 0
+    sleep 20
+  done
+  return 1
+}
+
+cat > /opt/eventflow.env <<'EOF'
+NODE_ENV=production
+LOG_LEVEL=info
+DATABASE_URL=${database_url}
+REDIS_URL=${redis_url}
+AWS_REGION=${region}
+S3_BUCKET=${bucket}
+S3_PUBLIC_URL=https://${bucket}.s3.amazonaws.com
+AUDIT_TABLE=${audit_table}
+EVENTS_TOPIC_ARN=${topic_arn}
+TICKET_JOBS_QUEUE=${ticket_queue}
+IMAGE_JOBS_QUEUE=${image_queue}
+JWT_SECRET=${jwt_secret}
+JWT_TTL_HOURS=168
+CORS_ORIGIN=*
+EOF
+
+docker network create eventflow || true
+
+run() {
+  local name=$1 port=$2
+  docker rm -f "$name" 2>/dev/null || true
+  docker run -d --restart unless-stopped --name "$name" --network eventflow \
+    --env-file /opt/eventflow.env -e PORT="$port" "$REGISTRY/${project}/$name:latest"
+}
+
+%{ if role == "web" ~}
+pull migrate
+docker run --rm --env-file /opt/eventflow.env "$REGISTRY/${project}/migrate:latest"
+# Seed the demo data only once for the whole fleet.
+if ! aws s3api head-object --bucket ${bucket} --key .seeded --region "$REGION"; then
+  docker run --rm --env-file /opt/eventflow.env "$REGISTRY/${project}/migrate:latest" \
+    npm run seed -w @eventflow/db \
+    && aws s3api put-object --bucket ${bucket} --key .seeded --region "$REGION"
+fi
+
+for svc in auth-service catalog-service sales-service gateway; do pull "$svc"; done
+run auth-service 3001
+run catalog-service 3002
+run sales-service 3003
+
+docker rm -f gateway 2>/dev/null || true
+docker run -d --restart unless-stopped --name gateway --network eventflow -p 80:80 -e API_HOST=${alb_dns} \
+  "$REGISTRY/${project}/gateway:latest"
+%{ else ~}
+pull processing-worker
+docker rm -f processing-worker 2>/dev/null || true
+docker run -d --restart unless-stopped --name processing-worker --network eventflow \
+  --env-file /opt/eventflow.env "$REGISTRY/${project}/processing-worker:latest"
+%{ endif ~}

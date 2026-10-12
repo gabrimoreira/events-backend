@@ -1,5 +1,6 @@
 FROM node:22-alpine AS build
 WORKDIR /repo
+ENV NPM_CONFIG_FETCH_RETRIES=5 NPM_CONFIG_FETCH_TIMEOUT=120000
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/db/package.json packages/db/prisma.config.ts packages/db/
